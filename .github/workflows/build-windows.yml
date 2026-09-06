@@ -1,0 +1,26 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore src/PCTemperatureMonitor/PCTemperatureMonitor.csproj
+      - name: Publish portable x64
+        run: dotnet publish src/PCTemperatureMonitor/PCTemperatureMonitor.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish/win-x64
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path publish/win-x64/* -DestinationPath PC-Temperature-Monitor-portable-win-x64.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PC-Temperature-Monitor-portable-win-x64
+          path: PC-Temperature-Monitor-portable-win-x64.zip
