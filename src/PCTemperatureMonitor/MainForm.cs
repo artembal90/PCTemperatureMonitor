@@ -1,3 +1,4 @@
+using System.Media;
 using Microsoft.Win32;
 using PCTemperatureMonitor.Models;
 using PCTemperatureMonitor.Services;
@@ -35,18 +36,9 @@ public sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         BackColor = Color.FromArgb(245, 247, 250);
-
         BuildUi();
-
-        _trayIcon = new NotifyIcon
-        {
-            Text = "PC Temperature Monitor",
-            Visible = true,
-            Icon = SystemIcons.Application,
-            ContextMenuStrip = BuildTrayMenu()
-        };
+        _trayIcon = new NotifyIcon { Text = "PC Temperature Monitor", Visible = true, Icon = SystemIcons.Application, ContextMenuStrip = BuildTrayMenu() };
         _trayIcon.DoubleClick += (_, _) => ShowFromTray();
-
         _timer = new System.Windows.Forms.Timer { Interval = Math.Clamp(_settings.UpdateIntervalSeconds, 1, 10) * 1000 };
         _timer.Tick += async (_, _) => await UpdateTemperaturesAsync();
         _timer.Start();
@@ -57,37 +49,19 @@ public sealed class MainForm : Form
 
     private void BuildUi()
     {
-        var title = new Label
-        {
-            Text = "Температура ПК",
-            Font = new Font("Segoe UI", 18, FontStyle.Bold),
-            AutoSize = true,
-            Location = new Point(24, 18)
-        };
-        Controls.Add(title);
-
-        var settingsButton = new Button
-        {
-            Text = "⚙",
-            Font = new Font("Segoe UI Symbol", 14),
-            Size = new Size(44, 36),
-            Location = new Point(370, 12),
-            FlatStyle = FlatStyle.Flat
-        };
+        Controls.Add(new Label { Text = "Температура ПК", Font = new Font("Segoe UI", 18, FontStyle.Bold), AutoSize = true, Location = new Point(24, 18) });
+        var settingsButton = new Button { Text = "⚙", Font = new Font("Segoe UI Symbol", 14), Size = new Size(44, 36), Location = new Point(370, 12), FlatStyle = FlatStyle.Flat };
         settingsButton.FlatAppearance.BorderSize = 0;
         settingsButton.Click += (_, _) => ShowSettings();
         Controls.Add(settingsButton);
-
         _cpuPanel = CreateSensorPanel("Процессор", 65, out _cpuValue);
         _gpuPanel = CreateSensorPanel("Видеокарта", 145, out _gpuValue);
         _mbPanel = CreateSensorPanel("Материнская плата", 225, out _mbValue);
         Controls.AddRange([_cpuPanel, _gpuPanel, _mbPanel]);
-
         _statusValue = new Label { Text = "Статус: определение…", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Location = new Point(24, 307) };
         _updatedValue = new Label { Text = "Обновлено: —", AutoSize = true, ForeColor = Color.DimGray, Location = new Point(24, 334) };
         Controls.Add(_statusValue);
         Controls.Add(_updatedValue);
-
         var hideButton = new Button { Text = "Скрыть в трей", Size = new Size(130, 32), Location = new Point(280, 325) };
         hideButton.Click += (_, _) => HideToTray();
         Controls.Add(hideButton);
@@ -95,16 +69,9 @@ public sealed class MainForm : Form
 
     private Panel CreateSensorPanel(string name, int y, out Label valueLabel)
     {
-        var panel = new Panel
-        {
-            Location = new Point(20, y),
-            Size = new Size(400, 68),
-            BackColor = Color.White,
-            BorderStyle = BorderStyle.FixedSingle
-        };
-        var nameLabel = new Label { Text = name, AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), Location = new Point(14, 10) };
+        var panel = new Panel { Location = new Point(20, y), Size = new Size(400, 68), BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        panel.Controls.Add(new Label { Text = name, AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), Location = new Point(14, 10) });
         valueLabel = new Label { Text = "— °C", AutoSize = true, Font = new Font("Segoe UI", 21, FontStyle.Bold), Location = new Point(270, 7) };
-        panel.Controls.Add(nameLabel);
         panel.Controls.Add(valueLabel);
         return panel;
     }
@@ -122,10 +89,7 @@ public sealed class MainForm : Form
     private async Task UpdateTemperaturesAsync()
     {
         TemperatureReading reading;
-        try
-        {
-            reading = await Task.Run(_hardware.Read);
-        }
+        try { reading = await Task.Run(_hardware.Read); }
         catch (Exception ex)
         {
             _statusValue.Text = "Статус: ошибка чтения датчиков";
@@ -133,14 +97,12 @@ public sealed class MainForm : Form
             _updatedValue.Text = $"{ex.GetType().Name}: {ex.Message}";
             return;
         }
-
         SetValue(_cpuValue, _cpuPanel, reading.Cpu, "CPU", ref _cpuAlert, _settings.CpuWarning, _settings.CpuCritical);
         SetValue(_gpuValue, _gpuPanel, reading.Gpu, "GPU", ref _gpuAlert, _settings.GpuWarning, _settings.GpuCritical);
         SetValue(_mbValue, _mbPanel, reading.Motherboard, "Материнская плата", ref _mbAlert, _settings.MotherboardWarning, _settings.MotherboardCritical);
-
         var allMissing = reading.Cpu is null && reading.Gpu is null && reading.Motherboard is null;
-        var critical = (_cpuAlert == AlertState.Critical) || (_gpuAlert == AlertState.Critical) || (_mbAlert == AlertState.Critical);
-        var warning = !critical && ((_cpuAlert == AlertState.Warning) || (_gpuAlert == AlertState.Warning) || (_mbAlert == AlertState.Warning));
+        var critical = _cpuAlert == AlertState.Critical || _gpuAlert == AlertState.Critical || _mbAlert == AlertState.Critical;
+        var warning = !critical && (_cpuAlert == AlertState.Warning || _gpuAlert == AlertState.Warning || _mbAlert == AlertState.Warning);
         _statusValue.Text = allMissing ? "Статус: датчики не найдены" : critical ? "Статус: ⚠ КРИТИЧЕСКАЯ ТЕМПЕРАТУРА" : warning ? "Статус: Повышенная температура" : "Статус: Норма";
         _statusValue.ForeColor = allMissing ? Color.DimGray : critical ? Color.Firebrick : warning ? Color.DarkOrange : Color.SeaGreen;
         _updatedValue.Text = $"Обновлено: {reading.Timestamp:HH:mm:ss}";
@@ -150,24 +112,10 @@ public sealed class MainForm : Form
     {
         var nextState = value is null ? AlertState.Unknown : value.Value >= critical ? AlertState.Critical : value.Value >= warning ? AlertState.Warning : AlertState.Normal;
         label.Text = value is null ? "— °C" : $"{value.Value:0} °C";
-        label.ForeColor = nextState switch
-        {
-            AlertState.Critical => Color.Firebrick,
-            AlertState.Warning => Color.DarkOrange,
-            _ => Color.FromArgb(35, 40, 45)
-        };
-        panel.BackColor = nextState switch
-        {
-            AlertState.Critical => Color.FromArgb(255, 235, 235),
-            AlertState.Warning => Color.FromArgb(255, 247, 225),
-            _ => Color.White
-        };
-
-        if (nextState == AlertState.Critical && state != AlertState.Critical)
-            Alert(name, value!.Value, true);
-        else if (nextState == AlertState.Warning && state == AlertState.Normal)
-            Alert(name, value!.Value, false);
-
+        label.ForeColor = nextState switch { AlertState.Critical => Color.Firebrick, AlertState.Warning => Color.DarkOrange, _ => Color.FromArgb(35, 40, 45) };
+        panel.BackColor = nextState switch { AlertState.Critical => Color.FromArgb(255, 235, 235), AlertState.Warning => Color.FromArgb(255, 247, 225), _ => Color.White };
+        if (nextState == AlertState.Critical && state != AlertState.Critical) Alert(name, value!.Value, true);
+        else if (nextState == AlertState.Warning && state == AlertState.Normal) Alert(name, value!.Value, false);
         state = nextState;
     }
 
@@ -199,37 +147,20 @@ public sealed class MainForm : Form
         const string valueName = "PCTemperatureMonitor";
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(runKey, writable: true)
-                ?? Registry.CurrentUser.CreateSubKey(runKey);
+            using var key = Registry.CurrentUser.OpenSubKey(runKey, writable: true) ?? Registry.CurrentUser.CreateSubKey(runKey);
             if (key is null) return;
-
-            if (_settings.StartWithWindows)
-                key.SetValue(valueName, $"\"{Application.ExecutablePath}\"");
-            else
-                key.DeleteValue(valueName, throwOnMissingValue: false);
+            if (_settings.StartWithWindows) key.SetValue(valueName, $"\"{Application.ExecutablePath}\"");
+            else key.DeleteValue(valueName, throwOnMissingValue: false);
         }
-        catch
-        {
-        }
+        catch { }
     }
 
     private void HideToTray() => Hide();
-
-    private void ShowFromTray()
-    {
-        Show();
-        WindowState = FormWindowState.Normal;
-        Activate();
-    }
+    private void ShowFromTray() { Show(); WindowState = FormWindowState.Normal; Activate(); }
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (!_allowClose && _settings.MinimizeToTray)
-        {
-            e.Cancel = true;
-            HideToTray();
-            return;
-        }
+        if (!_allowClose && _settings.MinimizeToTray) { e.Cancel = true; HideToTray(); return; }
         _timer.Stop();
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
