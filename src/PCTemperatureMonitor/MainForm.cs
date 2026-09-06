@@ -8,10 +8,10 @@ namespace PCTemperatureMonitor;
 public sealed class MainForm : Form
 {
     private readonly SettingsService _settingsService = new();
-    private readonly HardwareMonitorService _hardware = new();
     private readonly NotifyIcon _trayIcon;
     private readonly System.Windows.Forms.Timer _timer;
     private AppSettings _settings;
+    private HardwareMonitorService? _hardware;
     private Label _cpuValue = null!;
     private Label _gpuValue = null!;
     private Label _mbValue = null!;
@@ -37,6 +37,7 @@ public sealed class MainForm : Form
         MaximizeBox = false;
         BackColor = Color.FromArgb(245, 247, 250);
         BuildUi();
+
         _trayIcon = new NotifyIcon { Text = "PC Temperature Monitor", Visible = true, Icon = SystemIcons.Application, ContextMenuStrip = BuildTrayMenu() };
         _trayIcon.DoubleClick += (_, _) => ShowFromTray();
         _timer = new System.Windows.Forms.Timer { Interval = Math.Clamp(_settings.UpdateIntervalSeconds, 1, 10) * 1000 };
@@ -45,6 +46,17 @@ public sealed class MainForm : Form
         UpdateStartupSetting();
         Shown += async (_, _) => await UpdateTemperaturesAsync();
         FormClosing += MainForm_FormClosing;
+
+        try
+        {
+            _hardware = new HardwareMonitorService();
+        }
+        catch (Exception ex)
+        {
+            _statusValue.Text = "Статус: мониторинг датчиков недоступен";
+            _statusValue.ForeColor = Color.Firebrick;
+            _updatedValue.Text = $"Ошибка инициализации: {ex.Message}";
+        }
     }
 
     private void BuildUi()
@@ -88,6 +100,7 @@ public sealed class MainForm : Form
 
     private async Task UpdateTemperaturesAsync()
     {
+        if (_hardware is null) return;
         TemperatureReading reading;
         try { reading = await Task.Run(_hardware.Read); }
         catch (Exception ex)
@@ -114,8 +127,8 @@ public sealed class MainForm : Form
         label.Text = value is null ? "— °C" : $"{value.Value:0} °C";
         label.ForeColor = nextState switch { AlertState.Critical => Color.Firebrick, AlertState.Warning => Color.DarkOrange, _ => Color.FromArgb(35, 40, 45) };
         panel.BackColor = nextState switch { AlertState.Critical => Color.FromArgb(255, 235, 235), AlertState.Warning => Color.FromArgb(255, 247, 225), _ => Color.White };
-        if (nextState == AlertState.Critical && state != AlertState.Critical) Alert(name, value.Value, true);
-        else if (nextState == AlertState.Warning && state == AlertState.Normal) Alert(name, value.Value, false);
+        if (nextState == AlertState.Critical && state != AlertState.Critical) Alert(name, value!.Value, true);
+        else if (nextState == AlertState.Warning && state == AlertState.Normal) Alert(name, value!.Value, false);
         state = nextState;
     }
 
@@ -164,7 +177,7 @@ public sealed class MainForm : Form
         _timer.Stop();
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
-        _hardware.Dispose();
+        _hardware?.Dispose();
     }
 
     private enum AlertState { Unknown, Normal, Warning, Critical }
