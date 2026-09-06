@@ -114,8 +114,8 @@ public sealed class MainForm : Form
         label.Text = value is null ? "— °C" : $"{value.Value:0} °C";
         label.ForeColor = nextState switch { AlertState.Critical => Color.Firebrick, AlertState.Warning => Color.DarkOrange, _ => Color.FromArgb(35, 40, 45) };
         panel.BackColor = nextState switch { AlertState.Critical => Color.FromArgb(255, 235, 235), AlertState.Warning => Color.FromArgb(255, 247, 225), _ => Color.White };
-        if (nextState == AlertState.Critical && state != AlertState.Critical) Alert(name, value!.Value, true);
-        else if (nextState == AlertState.Warning && state == AlertState.Normal) Alert(name, value!.Value, false);
+        if (nextState == AlertState.Critical && state != AlertState.Critical) Alert(name, value.Value, true);
+        else if (nextState == AlertState.Warning && state == AlertState.Normal) Alert(name, value.Value, false);
         state = nextState;
     }
 
