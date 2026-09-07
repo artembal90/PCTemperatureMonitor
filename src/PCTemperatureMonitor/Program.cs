@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace PCTemperatureMonitor;
@@ -15,7 +16,7 @@ internal static class Program
     private static void Main()
     {
         StartupLog.Mark("START");
-        StartupLog.Mark($"OS={Environment.OSVersion}; Process={Environment.ProcessArchitecture}; Runtime={Environment.Version}; Base={AppContext.BaseDirectory}");
+        StartupLog.Mark($"OS={Environment.OSVersion}; Process={RuntimeInformation.ProcessArchitecture}; Runtime={Environment.Version}; Base={AppContext.BaseDirectory}");
 
         try
         {
