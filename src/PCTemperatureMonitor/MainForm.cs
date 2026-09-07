@@ -21,13 +21,16 @@ public sealed class MainForm : Form
     private Panel _gpuPanel = null!;
     private Panel _mbPanel = null!;
     private bool _allowClose;
+    private bool _hardwareInitializationStarted;
     private AlertState _cpuAlert;
     private AlertState _gpuAlert;
     private AlertState _mbAlert;
 
     public MainForm()
     {
+        Program.StartupLog.Mark("MAIN FORM: constructor BEGIN");
         _settings = _settingsService.Load();
+        Program.StartupLog.Mark("MAIN FORM: settings loaded");
         Text = "PC Temperature Monitor";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(440, 390);
@@ -36,23 +39,49 @@ public sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         BackColor = Color.FromArgb(245, 247, 250);
-        BuildUi();
 
-        _trayIcon = new NotifyIcon { Text = "PC Temperature Monitor", Visible = true, Icon = SystemIcons.Application, ContextMenuStrip = BuildTrayMenu() };
+        Program.StartupLog.Mark("MAIN FORM: before BuildUi");
+        BuildUi();
+        Program.StartupLog.Mark("MAIN FORM: after BuildUi");
+
+        _trayIcon = new NotifyIcon
+        {
+            Text = "PC Temperature Monitor",
+            Visible = true,
+            Icon = SystemIcons.Application,
+            ContextMenuStrip = BuildTrayMenu()
+        };
+        Program.StartupLog.Mark("MAIN FORM: tray initialized");
         _trayIcon.DoubleClick += (_, _) => ShowFromTray();
+
         _timer = new System.Windows.Forms.Timer { Interval = Math.Clamp(_settings.UpdateIntervalSeconds, 1, 10) * 1000 };
         _timer.Tick += async (_, _) => await UpdateTemperaturesAsync();
         _timer.Start();
+        Program.StartupLog.Mark("MAIN FORM: timer started");
         UpdateStartupSetting();
-        Shown += async (_, _) => await UpdateTemperaturesAsync();
+        Shown += async (_, _) => await InitializeHardwareAsync();
         FormClosing += MainForm_FormClosing;
+        Program.StartupLog.Mark("MAIN FORM: constructor END");
+    }
+
+    private async Task InitializeHardwareAsync()
+    {
+        if (_hardwareInitializationStarted) return;
+        _hardwareInitializationStarted = true;
+        Program.StartupLog.Mark("HARDWARE: initialization BEGIN");
 
         try
         {
+            _statusValue.Text = "Статус: запуск мониторинга датчиков…";
+            await Task.Yield();
             _hardware = new HardwareMonitorService();
+            Program.StartupLog.Mark("HARDWARE: Open completed");
+            await UpdateTemperaturesAsync();
+            Program.StartupLog.Mark("HARDWARE: first reading completed");
         }
         catch (Exception ex)
         {
+            Program.StartupLog.Error(ex, "HARDWARE: initialization failed");
             _statusValue.Text = "Статус: мониторинг датчиков недоступен";
             _statusValue.ForeColor = Color.Firebrick;
             _updatedValue.Text = $"Ошибка инициализации: {ex.Message}";
@@ -70,7 +99,7 @@ public sealed class MainForm : Form
         _gpuPanel = CreateSensorPanel("Видеокарта", 145, out _gpuValue);
         _mbPanel = CreateSensorPanel("Материнская плата", 225, out _mbValue);
         Controls.AddRange([_cpuPanel, _gpuPanel, _mbPanel]);
-        _statusValue = new Label { Text = "Статус: определение…", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Location = new Point(24, 307) };
+        _statusValue = new Label { Text = "Статус: запуск интерфейса…", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Location = new Point(24, 307) };
         _updatedValue = new Label { Text = "Обновлено: —", AutoSize = true, ForeColor = Color.DimGray, Location = new Point(24, 334) };
         Controls.Add(_statusValue);
         Controls.Add(_updatedValue);
@@ -105,6 +134,7 @@ public sealed class MainForm : Form
         try { reading = await Task.Run(_hardware.Read); }
         catch (Exception ex)
         {
+            Program.StartupLog.Error(ex, "HARDWARE: reading failed");
             _statusValue.Text = "Статус: ошибка чтения датчиков";
             _statusValue.ForeColor = Color.Firebrick;
             _updatedValue.Text = $"{ex.GetType().Name}: {ex.Message}";
